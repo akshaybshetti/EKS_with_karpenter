@@ -1,0 +1,173 @@
+# Kubernetes Namespaces for Multi-Environment Setup
+# Apply this file after EKS cluster is deployed
+# Usage: kubectl apply -f kubernetes-namespaces.yaml
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    name: dev
+    environment: development
+    managed-by: kubectl
+    app-tier: application
+  annotations:
+    description: "Development environment namespace"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pre-prod
+  labels:
+    name: pre-prod
+    environment: pre-production
+    managed-by: kubectl
+    app-tier: application
+  annotations:
+    description: "Pre-production environment namespace"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    name: prod
+    environment: production
+    managed-by: kubectl
+    app-tier: application
+  annotations:
+    description: "Production environment namespace"
+---
+# Resource Quota for Dev Namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-resource-quota
+  namespace: dev
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    pods: "100"
+    services: "50"
+    persistentvolumeclaims: "20"
+---
+# Resource Quota for Pre-Prod Namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pre-prod-resource-quota
+  namespace: pre-prod
+spec:
+  hard:
+    requests.cpu: "30"
+    requests.memory: 60Gi
+    limits.cpu: "60"
+    limits.memory: 120Gi
+    pods: "150"
+    services: "75"
+    persistentvolumeclaims: "30"
+---
+# Resource Quota for Prod Namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: prod-resource-quota
+  namespace: prod
+spec:
+  hard:
+    requests.cpu: "100"
+    requests.memory: 200Gi
+    limits.cpu: "200"
+    limits.memory: 400Gi
+    pods: "500"
+    services: "200"
+    persistentvolumeclaims: "100"
+---
+# Limit Range for Dev Namespace
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: dev-limit-range
+  namespace: dev
+spec:
+  limits:
+  - max:
+      cpu: "4"
+      memory: "8Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "500m"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "250m"
+      memory: "256Mi"
+    type: Container
+---
+# Limit Range for Pre-Prod Namespace
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: pre-prod-limit-range
+  namespace: pre-prod
+spec:
+  limits:
+  - max:
+      cpu: "8"
+      memory: "16Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "1"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "500m"
+      memory: "512Mi"
+    type: Container
+---
+# Limit Range for Prod Namespace
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: prod-limit-range
+  namespace: prod
+spec:
+  limits:
+  - max:
+      cpu: "16"
+      memory: "32Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "2"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "1"
+      memory: "1Gi"
+    type: Container
+---
+# Network Policy - Example for isolation (optional)
+# Uncomment if you want to implement network policies
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: deny-cross-namespace
+#   namespace: dev
+# spec:
+#   podSelector: {}
+#   policyTypes:
+#   - Ingress
+#   - Egress
+#   ingress:
+#   - from:
+#     - podSelector: {}
+#   egress:
+#   - to:
+#     - podSelector: {}

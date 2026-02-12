@@ -1,0 +1,601 @@
+# EKS Cluster with Karpenter - Multi-Environment Setup
+
+Production-ready Amazon EKS cluster deployment using Terraform with ARM64/Graviton nodes and Karpenter for dynamic node provisioning.
+
+## 📋 Table of Contents
+
+- [Architecture Overview](#architecture-overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Environment Configuration](#environment-configuration)
+- [Deployment Instructions](#deployment-instructions)
+- [Post-Deployment](#post-deployment)
+- [Creating Kubernetes Namespaces](#creating-kubernetes-namespaces)
+- [Cleanup](#cleanup)
+- [Troubleshooting](#troubleshooting)
+
+## 🏗️ Architecture Overview
+
+This project deploys a fully-managed Amazon EKS cluster with the following characteristics:
+
+- **EKS Version**: 1.28
+- **Node Architecture**: ARM64 (Graviton processors)
+- **Node Management**: Karpenter for dynamic, cost-optimized autoscaling
+- **Network**: Private subnets only (production-ready)
+- **Security**: Existing VPC, security groups, and SSH keys
+- **Environments**: dev, pre-prod, prod with separate configurations
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         AWS Cloud                            │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │                    Existing VPC                        │  │
+│  │  ┌──────────────────────────────────────────────────┐ │  │
+│  │  │         Private Subnets (3 AZs)                   │ │  │
+│  │  │  ┌────────────────────────────────────────────┐  │ │  │
+│  │  │  │         EKS Control Plane                   │  │ │  │
+│  │  │  └────────────────────────────────────────────┘  │ │  │
+│  │  │  ┌────────────────────────────────────────────┐  │ │  │
+│  │  │  │  Karpenter Controller Nodes (Managed)      │  │ │  │
+│  │  │  │  • t4g.medium/large/c7g.large (ARM64)      │  │ │  │
+│  │  │  │  • Min: 2-3 nodes (per env)                │  │ │  │
+│  │  │  └────────────────────────────────────────────┘  │ │  │
+│  │  │  ┌────────────────────────────────────────────┐  │ │  │
+│  │  │  │  Karpenter-Managed Workload Nodes          │  │ │  │
+│  │  │  │  • Auto-scaled based on workload           │  │ │  │
+│  │  │  │  • ARM64 instances (t4g, c7g, m7g, r7g)    │  │ │  │
+│  │  │  │  • On-demand & Spot (dev/pre-prod)         │  │ │  │
+│  │  │  └────────────────────────────────────────────┘  │ │  │
+│  │  └──────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## ✨ Features
+
+- ✅ **Infrastructure as Code**: 100% Terraform-managed infrastructure
+- ✅ **Graviton ARM64 Nodes**: Cost-effective and high-performance
+- ✅ **Karpenter Integration**: Dynamic node provisioning and scaling
+- ✅ **Multi-Environment**: Separate dev, pre-prod, and prod environments
+- ✅ **Security**: Private subnets, existing security groups, SSH keys
+- ✅ **High Availability**: Multi-AZ deployment
+- ✅ **Spot Instance Support**: Cost optimization (non-prod environments)
+- ✅ **Interrupt Handling**: Automatic handling of spot interruptions
+
+## 📦 Prerequisites
+
+### Required Tools
+
+Install the following tools on your local machine:
+
+```bash
+# AWS CLI (v2)
+aws --version  # Should be >= 2.0
+
+# Terraform
+terraform version  # Should be >= 1.3
+
+# kubectl
+kubectl version --client  # Should be >= 1.28
+
+# Helm (for Karpenter installation)
+helm version  # Should be >= 3.0
+```
+
+### AWS Prerequisites
+
+Before running Terraform, ensure you have:
+
+1. **VPC with Private Subnets**
+   - Minimum 3 private subnets across different AZs
+   - Properly tagged for discovery
+
+2. **Security Group**
+   - Named "OfficeIPs"
+   - Contains your office/admin IP ranges
+
+3. **SSH Key Pair**
+   - Created in EC2 for potential node access
+
+4. **S3 Bucket**
+   - For Terraform state storage
+   - Enable versioning and encryption
+
+5. **IAM Permissions**
+   - EKS cluster creation
+   - EC2 instance management
+   - IAM role/policy management
+
+### Verify Prerequisites
+
+Run this verification script:
+
+```bash
+# Check AWS CLI and default region
+aws sts get-caller-identity
+aws configure get region
+
+# Verify VPC exists
+aws ec2 describe-vpcs --filters "Name=tag:Name,Values=main-vpc"
+
+# Verify security group exists
+aws ec2 describe-security-groups --filters "Name=group-name,Values=OfficeIPs"
+
+# Verify SSH key exists
+aws ec2 describe-key-pairs --key-names eks-node-key
+
+# Check if S3 bucket for state exists
+aws s3 ls s3://your-terraform-state-bucket
+```
+
+## 🚀 Quick Start
+
+### Step 1: Tag Your AWS Resources
+
+Your VPC and subnets must be properly tagged for Terraform to discover them.
+
+**Tag the VPC:**
+```bash
+VPC_ID="vpc-0837f80df815d47c3"  # Your VPC ID
+aws ec2 create-tags --resources $VPC_ID --tags Key=Name,Value=main-vpc
+```
+
+**Tag Private Subnets:**
+```bash
+# Identify your private subnets (those without internet gateway routes)
+# Then tag them:
+SUBNET_IDS="subnet-046649f59dd3df024 subnet-0Oebbf495935fc5c5 subnet-0da781ddc8e76c620"
+
+for SUBNET_ID in $SUBNET_IDS; do
+  aws ec2 create-tags --resources $SUBNET_ID --tags \
+    Key=Type,Value=private \
+    Key=Name,Value=private-subnet-${SUBNET_ID: -4}
+done
+```
+
+### Step 2: Create Required AWS Resources
+
+**Create Security Group (if not exists):**
+```bash
+aws ec2 create-security-group \
+  --group-name OfficeIPs \
+  --description "Office IP whitelist for EKS nodes" \
+  --vpc-id vpc-0837f80df815d47c3
+
+# Add your IP
+aws ec2 authorize-security-group-ingress \
+  --group-name OfficeIPs \
+  --protocol tcp \
+  --port 22 \
+  --cidr YOUR_IP/32
+```
+
+**Create SSH Key Pair (if not exists):**
+```bash
+aws ec2 create-key-pair \
+  --key-name eks-node-key \
+  --query 'KeyMaterial' \
+  --output text > eks-node-key.pem
+
+chmod 400 eks-node-key.pem
+```
+
+**Create S3 Bucket for Terraform State:**
+```bash
+BUCKET_NAME="your-terraform-state-bucket"
+aws s3 mb s3://$BUCKET_NAME
+aws s3api put-bucket-versioning \
+  --bucket $BUCKET_NAME \
+  --versioning-configuration Status=Enabled
+aws s3api put-bucket-encryption \
+  --bucket $BUCKET_NAME \
+  --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+```
+
+### Step 3: Clone and Configure
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/eks-terraform-project.git
+cd eks-terraform-project
+
+# Choose an environment to deploy (start with dev)
+cd environments/dev
+
+# Edit terraform.tfvars with your actual values
+# Update:
+# - ssh_key_name = "your-actual-key-name"
+# - Any other environment-specific values
+
+# Edit main.tf and update the S3 backend bucket name
+```
+
+### Step 4: Deploy
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply the configuration (takes ~15 minutes)
+terraform apply
+
+# Note the outputs for kubectl configuration
+```
+
+### Step 5: Access the Cluster
+
+```bash
+# Configure kubectl
+aws eks update-kubeconfig --region us-east-1 --name eks-dev-cluster
+
+# Verify connection
+kubectl get nodes
+kubectl get pods -n karpenter
+
+# Check Karpenter is running
+kubectl get deployment -n karpenter
+```
+
+## 📁 Project Structure
+
+```
+eks-terraform-project/
+├── environments/
+│   ├── dev/
+│   │   ├── main.tf              # Main configuration for dev
+│   │   ├── variables.tf         # Variable definitions
+│   │   ├── terraform.tfvars     # Variable values (not in git)
+│   │   └── outputs.tf           # Output values
+│   ├── pre-prod/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── terraform.tfvars
+│   │   └── outputs.tf
+│   └── prod/
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── terraform.tfvars
+│       └── outputs.tf
+├── modules/
+│   ├── networking/
+│   │   ├── data.tf              # Data sources for VPC discovery
+│   │   ├── variables.tf         # Module variables
+│   │   └── outputs.tf           # Module outputs
+│   ├── eks/
+│   │   ├── main.tf              # EKS cluster configuration
+│   │   ├── variables.tf         # Module variables
+│   │   ├── outputs.tf           # Module outputs
+│   │   └── versions.tf          # Provider versions
+│   └── karpenter/
+│       ├── main.tf              # Karpenter installation
+│       ├── variables.tf         # Module variables
+│       ├── outputs.tf           # Module outputs
+│       └── versions.tf          # Provider versions
+├── .gitignore
+└── README.md
+```
+
+## ⚙️ Environment Configuration
+
+Each environment has different configurations optimized for its purpose:
+
+| Setting | Dev | Pre-Prod | Prod |
+|---------|-----|----------|------|
+| Cluster Name | eks-dev-cluster | eks-pre-prod-cluster | eks-prod-cluster |
+| Public Access | Yes | No | No |
+| Controller Nodes | 2 x t4g.medium | 3 x t4g.large | 3 x c7g.large |
+| Capacity Type | On-demand | On-demand + Spot | On-demand |
+| CPU Limit | 50 cores | 75 cores | 200 cores |
+| Memory Limit | 100Gi | 150Gi | 400Gi |
+| Instance Families | t4g, c7g, m7g | t4g, c7g, m7g | c7g, m7g, r7g |
+
+## 📝 Deployment Instructions
+
+### Deploy Development Environment
+
+```bash
+cd environments/dev
+
+# Initialize
+terraform init
+
+# Plan
+terraform plan -out=tfplan
+
+# Apply
+terraform apply tfplan
+
+# Get kubeconfig
+aws eks update-kubeconfig --region us-east-1 --name eks-dev-cluster
+```
+
+### Deploy Pre-Production Environment
+
+```bash
+cd environments/pre-prod
+
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+
+aws eks update-kubeconfig --region us-east-1 --name eks-pre-prod-cluster
+```
+
+### Deploy Production Environment
+
+```bash
+cd environments/prod
+
+terraform init
+terraform plan -out=tfplan
+
+# Extra verification before production deploy
+terraform plan -detailed-exitcode
+
+terraform apply tfplan
+
+aws eks update-kubeconfig --region us-east-1 --name eks-prod-cluster
+```
+
+## 🎯 Post-Deployment
+
+### Verify Cluster Health
+
+```bash
+# Check nodes
+kubectl get nodes
+
+# Check Karpenter
+kubectl get pods -n karpenter
+kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter
+
+# Check Karpenter resources
+kubectl get nodepool
+kubectl get ec2nodeclass
+```
+
+### Test Karpenter Autoscaling
+
+Deploy a test workload to verify Karpenter scales nodes:
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inflate
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: inflate
+  template:
+    metadata:
+      labels:
+        app: inflate
+    spec:
+      containers:
+      - name: inflate
+        image: public.ecr.aws/eks-distro/kubernetes/pause:3.7
+        resources:
+          requests:
+            cpu: 1
+EOF
+
+# Scale up to trigger Karpenter
+kubectl scale deployment inflate --replicas=10
+
+# Watch nodes being created
+kubectl get nodes -w
+
+# Check Karpenter logs
+kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter -f
+
+# Scale down
+kubectl delete deployment inflate
+```
+
+## 🏷️ Creating Kubernetes Namespaces
+
+After cluster deployment, create namespaces for application workloads:
+
+### Option 1: Using kubectl
+
+```bash
+# Create namespaces for each environment
+kubectl create namespace dev
+kubectl create namespace pre-prod
+kubectl create namespace prod
+
+# Verify
+kubectl get namespaces
+```
+
+### Option 2: Using YAML Manifests
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    environment: dev
+    managed-by: kubectl
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pre-prod
+  labels:
+    environment: pre-prod
+    managed-by: kubectl
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    environment: prod
+    managed-by: kubectl
+EOF
+```
+
+### Set Default Namespace (Optional)
+
+```bash
+# For dev environment
+kubectl config set-context --current --namespace=dev
+
+# Verify
+kubectl config view --minify | grep namespace
+```
+
+### Namespace Resource Quotas (Recommended)
+
+```bash
+# Example: Set resource quotas for dev namespace
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+  namespace: dev
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    pods: "50"
+EOF
+```
+
+## 🧹 Cleanup
+
+To destroy the infrastructure:
+
+```bash
+# From the environment directory
+cd environments/dev
+
+# Destroy
+terraform destroy
+
+# Or with auto-approve (be careful!)
+terraform destroy -auto-approve
+```
+
+**Important**: Ensure all Karpenter-provisioned nodes are terminated before destroying:
+
+```bash
+# Delete all deployments first
+kubectl delete deployments --all -A
+
+# Wait for Karpenter to scale down
+kubectl get nodes -w
+
+# Then destroy infrastructure
+terraform destroy
+```
+
+## 🔧 Troubleshooting
+
+### Issue: VPC or Subnets Not Found
+
+**Solution**: Verify tags on your VPC and subnets:
+
+```bash
+aws ec2 describe-vpcs --vpc-ids vpc-0837f80df815d47c3
+aws ec2 describe-subnets --subnet-ids subnet-xxx --query 'Subnets[*].Tags'
+```
+
+### Issue: Karpenter Pods Not Starting
+
+**Solution**: Check IAM roles and IRSA configuration:
+
+```bash
+kubectl describe pod -n karpenter -l app.kubernetes.io/name=karpenter
+kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter
+```
+
+### Issue: Nodes Not Joining Cluster
+
+**Solution**: Verify security group rules and subnet tags:
+
+```bash
+# Check security groups
+kubectl get nodepool -o yaml
+
+# Verify subnet tags include karpenter.sh/discovery
+aws ec2 describe-subnets --filters "Name=tag:karpenter.sh/discovery,Values=eks-dev-cluster"
+```
+
+### Issue: "Failed to acquire state lock"
+
+**Solution**: 
+
+```bash
+# If another operation was interrupted, force unlock
+terraform force-unlock <LOCK_ID>
+
+# Or use a DynamoDB table for state locking (recommended)
+```
+
+### Getting Help
+
+- Check AWS EKS documentation: https://docs.aws.amazon.com/eks/
+- Karpenter documentation: https://karpenter.sh/
+- Terraform AWS Provider: https://registry.terraform.io/providers/hashicorp/aws/
+
+## 📊 Monitoring and Observability
+
+### View Karpenter Metrics
+
+```bash
+# Port-forward to Karpenter metrics
+kubectl port-forward -n karpenter svc/karpenter 8080:8080
+
+# Access metrics at http://localhost:8080/metrics
+```
+
+### CloudWatch Integration
+
+EKS automatically sends logs to CloudWatch. View them:
+
+```bash
+aws logs tail /aws/eks/eks-dev-cluster/cluster --follow
+```
+
+## 🔒 Security Best Practices
+
+- ✅ All production clusters use private subnets only
+- ✅ No public API endpoint access in production
+- ✅ Security groups restrict access to office IPs
+- ✅ SSH keys required for node access
+- ✅ IAM roles for service accounts (IRSA) enabled
+- ✅ Encryption enabled for all data at rest
+- ✅ Network policies should be implemented for pod-to-pod communication
+
+## 📚 Additional Resources
+
+- [AWS EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)
+- [Karpenter Best Practices](https://karpenter.sh/docs/getting-started/best-practices/)
+- [Terraform AWS Modules](https://registry.terraform.io/namespaces/terraform-aws-modules)
+- [ARM64 on EKS](https://aws.amazon.com/blogs/containers/running-arm-based-workloads-on-amazon-eks/)
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

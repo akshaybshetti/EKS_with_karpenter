@@ -1,0 +1,39 @@
+# Example Terraform Variables Configuration
+# Copy this file to terraform.tfvars and fill in your actual values
+
+# AWS Region
+aws_region = "us-east-1"
+
+# EKS Cluster Configuration
+cluster_name    = "eks-dev-cluster"
+cluster_version = "1.28"
+
+# Networking - Update with your actual resource names
+vpc_name_tag                = "main-vpc"
+office_security_group_name  = "OfficeIPs"
+ssh_key_name                = "eks-node-key"  # Your actual SSH key name
+
+# Cluster Access
+enable_public_access = true  # Set to false for private-only access
+
+# Karpenter Controller Node Group
+# These nodes run Karpenter controllers (ARM64/Graviton)
+karpenter_node_instance_types = ["t4g.medium"]
+karpenter_node_min_size       = 2
+karpenter_node_max_size       = 3
+karpenter_node_desired_size   = 2
+
+# Karpenter Configuration
+# Version of Karpenter to install
+karpenter_version = "v0.33.0"
+
+# Capacity types: "on-demand", "spot", or both
+karpenter_capacity_types = ["on-demand"]
+
+# Instance families for Karpenter-managed nodes (ARM64/Graviton)
+# Available: t4g, c7g, m7g, r7g (all ARM64)
+karpenter_instance_families = ["t4g", "c7g", "m7g"]
+
+# Resource limits for Karpenter autoscaling
+karpenter_cpu_limit    = "50"      # Maximum CPU cores
+karpenter_memory_limit = "100Gi"   # Maximum memory
