@@ -4,7 +4,7 @@ terraform {
   # Configure S3 backend for remote state
   # Update the bucket name to your actual S3 bucket
   backend "s3" {
-    bucket         = "eks-terraform-state-akshay-1"  # TODO: Update this
+    bucket         = "eks-terraform-state-akshay-2"  # TODO: Update this
     key            = "eks/dev/terraform.tfstate"
     region         = "us-east-1"  # Update based on your actual region
     encrypt        = true
@@ -113,12 +113,12 @@ module "karpenter" {
   capacity_types    = var.karpenter_capacity_types
   instance_families = var.karpenter_instance_families
   cpu_limit         = var.karpenter_cpu_limit
-  memory_limit      = var.karpenter_memory_limit
+  memory_limit      = var.memory_limit
 
   tags = {
     Environment = "pre-prod"
     Terraform   = "true"
   }
 
-  depends_on = [module.eks]
+  # depends_on = [module.eks]
 }

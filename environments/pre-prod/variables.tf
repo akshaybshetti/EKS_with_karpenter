@@ -94,3 +94,8 @@ variable "karpenter_memory_limit" {
   type        = string
   default     = "150Gi"  # Lower limit for dev
 }
+
+variable "memory_limit" {
+  description = "Maximum memory limit for Karpenter NodePool"
+  type        = string
+}

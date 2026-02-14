@@ -42,34 +42,34 @@ provider "aws" {
 }
 
 # Data source for EKS cluster auth
-data "aws_eks_cluster" "cluster" {
-  name = module.eks.cluster_name
+# data "aws_eks_cluster" "cluster" {
+#   name = module.eks.cluster_name
 
-  depends_on = [module.eks]
-}
+#   depends_on = [module.eks]
+# }
 
-data "aws_eks_cluster_auth" "cluster" {
-  name = module.eks.cluster_name
+# data "aws_eks_cluster_auth" "cluster" {
+#   name = module.eks.cluster_name
 
-  depends_on = [module.eks]
-}
+#   depends_on = [module.eks]
+# }
 
 # Helm Provider Configuration
-provider "helm" {
-  kubernetes {
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
-  }
-}
+# provider "helm" {
+#   kubernetes {
+#     host                   = data.aws_eks_cluster.cluster.endpoint
+#     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+#     token                  = data.aws_eks_cluster_auth.cluster.token
+#   }
+# }
 
 # Kubectl Provider Configuration
-provider "kubectl" {
-  host                   = data.aws_eks_cluster.cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.cluster.token
-  load_config_file       = false
-}
+# provider "kubectl" {
+#   host                   = data.aws_eks_cluster.cluster.endpoint
+#   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+#   token                  = data.aws_eks_cluster_auth.cluster.token
+#   load_config_file       = false
+# }
 
 # Networking Module - Fetches existing VPC and subnets
 module "networking" {
@@ -122,12 +122,10 @@ module "karpenter" {
   capacity_types    = var.karpenter_capacity_types
   instance_families = var.karpenter_instance_families
   cpu_limit         = var.karpenter_cpu_limit
-  memory_limit      = var.karpenter_memory_limit
+  memory_limit      = var.memory_limit
 
   tags = {
     Environment = "dev"
     Terraform   = "true"
   }
-
-  depends_on = [module.eks]
 }
