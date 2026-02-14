@@ -16,7 +16,7 @@ module "eks" {
 
   # Cluster endpoint access configuration
   cluster_endpoint_private_access = true
-  cluster_endpoint_public_access  = var.enable_public_access
+  cluster_endpoint_public_access  = true
 
   # Enable IRSA (IAM Roles for Service Accounts) - Required for Karpenter
   enable_irsa = true
