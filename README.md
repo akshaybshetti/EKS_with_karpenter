@@ -548,76 +548,6 @@ kubectl get nodes -w
 terraform destroy
 ```
 
-## 🔧 Troubleshooting
-
-### Issue: VPC or Subnets Not Found
-
-**Solution**: Verify tags on your VPC and subnets:
-
-```bash
-# Replace with your VPC ID
-aws ec2 describe-vpcs --vpc-ids vpc-xxxxxxxxxxxxxxxxx
-
-# Replace with your subnet IDs
-aws ec2 describe-subnets --subnet-ids subnet-xxxxx --query 'Subnets[*].Tags'
-```
-
-Ensure your VPC has a `Name` tag and subnets have a `Type=private` tag.
-
-### Issue: Karpenter Pods Not Starting
-
-**Solution**: Check IAM roles and IRSA configuration:
-
-```bash
-kubectl describe pod -n karpenter -l app.kubernetes.io/name=karpenter
-kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter
-```
-
-Verify that the Karpenter service account has the correct IAM role annotation.
-
-### Issue: Nodes Not Joining Cluster
-
-**Solution**: Verify security group rules and subnet tags:
-
-```bash
-# Check NodePool configuration
-kubectl get nodepool -o yaml
-
-# Verify subnet tags (replace cluster name)
-aws ec2 describe-subnets --filters "Name=tag:karpenter.sh/discovery,Values=your-cluster-name"
-```
-
-Ensure subnets are tagged with `karpenter.sh/discovery=your-cluster-name`.
-
-### Issue: "Failed to acquire state lock"
-
-**Solution**: 
-
-```bash
-# If another operation was interrupted, force unlock
-# (Replace LOCK_ID with the actual lock ID from the error message)
-terraform force-unlock <LOCK_ID>
-```
-
-For better state management, consider using a DynamoDB table for state locking.
-
-### Issue: terraform init fails
-
-**Solution**: 
-
-```bash
-# Clear Terraform cache
-rm -rf .terraform .terraform.lock.hcl
-
-# Re-initialize
-terraform init
-```
-
-### Getting Help
-
-- Check AWS EKS documentation: https://docs.aws.amazon.com/eks/
-- Karpenter documentation: https://karpenter.sh/
-- Terraform AWS Provider: https://registry.terraform.io/providers/hashicorp/aws/
 
 ## 📊 Monitoring and Observability
 
@@ -630,13 +560,6 @@ kubectl port-forward -n karpenter svc/karpenter 8080:8080
 # Access metrics at http://localhost:8080/metrics
 ```
 
-### CloudWatch Integration
-
-EKS automatically sends logs to CloudWatch. View them:
-
-```bash
-# Replace with your cluster name
-aws logs tail /aws/eks/your-cluster-name/cluster --follow
 ```
 
 ## 🔒 Security Best Practices
@@ -650,21 +573,6 @@ aws logs tail /aws/eks/your-cluster-name/cluster --follow
 - ✅ Network policies should be implemented for pod-to-pod communication
 - ✅ Regular security audits and updates
 - ✅ Least privilege IAM policies
-
-## 📚 Additional Resources
-
-- [AWS EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)
-- [Karpenter Best Practices](https://karpenter.sh/docs/getting-started/best-practices/)
-- [Terraform AWS Modules](https://registry.terraform.io/namespaces/terraform-aws-modules)
-- [ARM64 on EKS](https://aws.amazon.com/blogs/containers/running-arm-based-workloads-on-amazon-eks/)
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
@@ -683,5 +591,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 11. **Configure kubectl**: Update kubeconfig to access the cluster
 12. **Verify Deployment**: Check nodes and Karpenter status
 13. **Test Autoscaling**: Deploy test workload to verify Karpenter
-
-That's it! Your EKS cluster with Karpenter should be up and running.

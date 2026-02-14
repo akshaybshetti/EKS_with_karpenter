@@ -6,6 +6,9 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
 
+  enable_cluster_creator_admin_permissions = true
+
+
   # VPC and Subnet Configuration
   vpc_id                   = var.vpc_id
   subnet_ids               = var.private_subnet_ids
@@ -31,6 +34,7 @@ module "eks" {
     }
     aws-ebs-csi-driver = {
       most_recent = true
+      service_account_role_arn = aws_iam_role.ebs_csi_irsa.arn
     }
   }
 
@@ -61,13 +65,13 @@ module "eks" {
       }
 
       # Taints to ensure only Karpenter pods run on these nodes
-      taints = {
-        karpenter = {
-          key    = "karpenter.sh/controller"
-          value  = "true"
-          effect = "NO_SCHEDULE"
-        }
-      }
+      # taints = {
+      #   karpenter = {
+      #     key    = "karpenter.sh/controller"
+      #     value  = "true"
+      #     effect = "NO_SCHEDULE"
+      #   }
+      # }
 
       # Tags for Karpenter discovery
       tags = merge(
@@ -231,6 +235,38 @@ resource "aws_iam_role_policy" "karpenter_controller" {
     ]
   })
 }
+
+# IAM Role for EBS CSI Driver (IRSA)
+resource "aws_iam_role" "ebs_csi_irsa" {
+  name = "${var.cluster_name}-ebs-csi-irsa"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = module.eks.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(module.eks.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          "${replace(module.eks.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+
+  tags = var.tags
+}
+
+
+
+resource "aws_iam_role_policy_attachment" "ebs_csi_irsa" {
+  role       = aws_iam_role.ebs_csi_irsa.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
 
 # SQS Queue for Karpenter interruption handling (spot instances)
 resource "aws_sqs_queue" "karpenter_interruption" {
