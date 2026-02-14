@@ -32,10 +32,10 @@ module "eks" {
     vpc-cni = {
       most_recent = true
     }
-    aws-ebs-csi-driver = {
-      most_recent = true
-      service_account_role_arn = aws_iam_role.ebs_csi_irsa.arn
-    }
+    # aws-ebs-csi-driver = {
+    #   most_recent = true
+    #   service_account_role_arn =  aws_iam_role.ebs_csi_irsa.arn
+    # }
   }
 
   # EKS Managed Node Group for Karpenter controllers
@@ -250,8 +250,8 @@ resource "aws_iam_role" "ebs_csi_irsa" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${replace(module.eks.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
-          "${replace(module.eks.oidc_provider_url, "https://", "")}:aud" = "sts.amazonaws.com"
+          "${module.eks.oidc_provider}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          "${module.eks.oidc_provider}:aud" = "sts.amazonaws.com"
         }
       }
     }]
@@ -259,6 +259,7 @@ resource "aws_iam_role" "ebs_csi_irsa" {
 
   tags = var.tags
 }
+
 
 
 
@@ -345,4 +346,15 @@ resource "aws_cloudwatch_event_target" "karpenter_interruption" {
   rule      = each.value.name
   target_id = "KarpenterInterruptionQueueTarget"
   arn       = aws_sqs_queue.karpenter_interruption.arn
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = aws_iam_role.ebs_csi_irsa.arn
+
+  depends_on = [
+    module.eks,
+    aws_iam_role_policy_attachment.ebs_csi_irsa
+  ]
 }
