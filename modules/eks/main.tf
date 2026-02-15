@@ -15,8 +15,8 @@ module "eks" {
   control_plane_subnet_ids = var.private_subnet_ids
 
   # Cluster endpoint access configuration
-  cluster_endpoint_private_access = false
-  cluster_endpoint_public_access  = true
+  cluster_endpoint_private_access = true
+  cluster_endpoint_public_access  = var.enable_public_access
 
   # Enable IRSA (IAM Roles for Service Accounts) - Required for Karpenter
   enable_irsa = true

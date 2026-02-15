@@ -1,7 +1,7 @@
 variable "vpc_name_tag" {
   description = "Name tag of the existing VPC to use"
   type        = string
-  default     = "main-vpc"
+  default     = "main-vpc" // Update this default value as needed
 }
 
 variable "office_security_group_name" {

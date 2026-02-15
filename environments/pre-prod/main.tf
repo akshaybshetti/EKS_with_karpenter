@@ -5,7 +5,7 @@ terraform {
   # Update the bucket name to your actual S3 bucket
   backend "s3" {
     bucket         = "eks-terraform-state-akshay-2"  # TODO: Update this
-    key            = "eks/dev/terraform.tfstate"
+    key            = "eks/pre-prod/terraform.tfstate"  # Path within the bucket
     region         = "us-east-1"  # Update based on your actual region
     encrypt        = true
     dynamodb_table = "terraform-state-lock"  # Optional: for state locking

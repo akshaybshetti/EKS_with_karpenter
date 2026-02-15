@@ -1,6 +1,9 @@
 # Data source to fetch existing VPC by tags
 data "aws_vpc" "main" {
-  default = true
+  filter {
+    name   = "tag:Name"
+    values = [var.vpc_name_tag]
+  }
 }
 
 

@@ -5,7 +5,7 @@ terraform {
   # Update the bucket name to your actual S3 bucket
   backend "s3" {
     bucket         = "eks-terraform-state-akshay-2"  # TODO: Update this
-    key            = "eks/dev/terraform.tfstate"
+    key            = "eks/prod/terraform.tfstate"
     region         = "us-east-1"  # Update based on your actual region
     encrypt        = true
     dynamodb_table = "terraform-state-lock"  # Optional: for state locking
@@ -40,30 +40,30 @@ provider "aws" {
   }
 }
 
-# data "aws_eks_cluster" "cluster" {
-#   name = module.eks.cluster_name
-#   depends_on = [module.eks]
-# }
+data "aws_eks_cluster" "cluster" {
+  name = module.eks.cluster_name
+  depends_on = [module.eks]
+}
 
-# data "aws_eks_cluster_auth" "cluster" {
-#   name = module.eks.cluster_name
-#   depends_on = [module.eks]
-# }
+data "aws_eks_cluster_auth" "cluster" {
+  name = module.eks.cluster_name
+  depends_on = [module.eks]
+}
 
-# provider "helm" {
-#   kubernetes {
-#     host                   = data.aws_eks_cluster.cluster.endpoint
-#     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-#     token                  = data.aws_eks_cluster_auth.cluster.token
-#   }
-# }
+provider "helm" {
+  kubernetes {
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.cluster.token
+  }
+}
 
-# provider "kubectl" {
-#   host                   = data.aws_eks_cluster.cluster.endpoint
-#   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-#   token                  = data.aws_eks_cluster_auth.cluster.token
-#   load_config_file       = false
-# }
+provider "kubectl" {
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
+  load_config_file       = false
+}
 
 
 
@@ -100,30 +100,30 @@ module "eks" {
   }
 }
 
-# module "karpenter" {
-#   source = "../../modules/karpenter"
+module "karpenter" {
+  source = "../../modules/karpenter"
 
-#   providers = {
-#     helm    = helm
-#     kubectl = kubectl
-#   }
+  providers = {
+    helm    = helm
+    kubectl = kubectl
+  }
 
-#   cluster_name                   = module.eks.cluster_name
-#   cluster_endpoint               = module.eks.cluster_endpoint
-#   karpenter_version              = var.karpenter_version
-#   karpenter_controller_role_arn  = module.eks.karpenter_controller_role_arn
-#   karpenter_node_role_name       = split("/", module.eks.karpenter_node_role_arn)[1]
-#   interruption_queue_name        = module.eks.karpenter_interruption_queue_name
-#   private_subnet_ids             = module.networking.private_subnet_ids
-#   node_security_group_id         = module.eks.node_security_group_id
+  cluster_name                   = module.eks.cluster_name
+  cluster_endpoint               = module.eks.cluster_endpoint
+  karpenter_version              = var.karpenter_version
+  karpenter_controller_role_arn  = module.eks.karpenter_controller_role_arn
+  karpenter_node_role_name       = split("/", module.eks.karpenter_node_role_arn)[1]
+  interruption_queue_name        = module.eks.karpenter_interruption_queue_name
+  private_subnet_ids             = module.networking.private_subnet_ids
+  node_security_group_id         = module.eks.node_security_group_id
 
-#   capacity_types    = var.karpenter_capacity_types
-#   instance_families = var.karpenter_instance_families
-#   cpu_limit         = var.karpenter_cpu_limit
-#   memory_limit      = var.karpenter_memory_limit
+  capacity_types    = var.karpenter_capacity_types
+  instance_families = var.karpenter_instance_families
+  cpu_limit         = var.karpenter_cpu_limit
+  memory_limit      = var.karpenter_memory_limit
 
-#   tags = {
-#     Environment = "prod"
-#     Terraform   = "true"
-#   }
-# }
+  tags = {
+    Environment = "prod"
+    Terraform   = "true"
+  }
+}

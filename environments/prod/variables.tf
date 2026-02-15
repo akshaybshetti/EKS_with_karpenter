@@ -36,7 +36,7 @@ variable "ssh_key_name" {
 variable "enable_public_access" {
   description = "Enable public access to the EKS cluster API endpoint"
   type        = bool
-  default     = true  # Production is private only
+  default     = false  # Production is private only
 }
 
 variable "karpenter_node_instance_types" {
