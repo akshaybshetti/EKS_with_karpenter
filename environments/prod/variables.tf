@@ -36,19 +36,19 @@ variable "ssh_key_name" {
 variable "enable_public_access" {
   description = "Enable public access to the EKS cluster API endpoint"
   type        = bool
-  default     = false  # Production is private only
+  default     = false # Production is private only
 }
 
 variable "karpenter_node_instance_types" {
   description = "Instance types for Karpenter controller nodes"
   type        = list(string)
-  default     = ["t4g.small"]  # More powerful for production
+  default     = ["t4g.small"] # More powerful for production
 }
 
 variable "karpenter_node_min_size" {
   description = "Minimum size of Karpenter controller node group"
   type        = number
-  default     = 1  # Cost-optimized for assignment/testing
+  default     = 1 # Cost-optimized for assignment/testing
 }
 
 variable "karpenter_node_max_size" {
@@ -72,23 +72,23 @@ variable "karpenter_version" {
 variable "karpenter_capacity_types" {
   description = "Capacity types for Karpenter-provisioned nodes"
   type        = list(string)
-  default     = ["on-demand"]  # Production uses on-demand for reliability
+  default     = ["on-demand"] # Production uses on-demand for reliability
 }
 
 variable "karpenter_instance_families" {
   description = "Instance families for Karpenter nodes (ARM64/Graviton)"
   type        = list(string)
-  default     = ["t4g", "c7g", "m7g"]  # More powerful instance families
+  default     = ["t4g", "c7g", "m7g"] # More powerful instance families
 }
 
 variable "karpenter_cpu_limit" {
   description = "Maximum CPU cores for Karpenter to provision"
   type        = string
-  default     = "20"  # Higher limit for production
+  default     = "20" # Higher limit for production
 }
 
 variable "karpenter_memory_limit" {
   description = "Maximum memory for Karpenter to provision"
   type        = string
-  default     = "40Gi"  # Higher limit for production
+  default     = "40Gi" # Higher limit for production
 }

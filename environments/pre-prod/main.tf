@@ -4,11 +4,11 @@ terraform {
   # Configure S3 backend for remote state
   # Update the bucket name to your actual S3 bucket
   backend "s3" {
-    bucket         = "eks-terraform-state-akshay-2"  # TODO: Update this
-    key            = "eks/pre-prod/terraform.tfstate"  # Path within the bucket
-    region         = "us-east-1"  # Update based on your actual region
+    bucket         = "eks-terraform-state-akshay-2"   # TODO: Update this
+    key            = "eks/pre-prod/terraform.tfstate" # Path within the bucket
+    region         = "us-east-1"                      # Update based on your actual region
     encrypt        = true
-    dynamodb_table = "terraform-state-lock"  # Optional: for state locking
+    dynamodb_table = "terraform-state-lock" # Optional: for state locking
   }
 
   required_providers {
@@ -41,12 +41,12 @@ provider "aws" {
 }
 
 data "aws_eks_cluster" "cluster" {
-  name = module.eks.cluster_name
+  name       = module.eks.cluster_name
   depends_on = [module.eks]
 }
 
 data "aws_eks_cluster_auth" "cluster" {
-  name = module.eks.cluster_name
+  name       = module.eks.cluster_name
   depends_on = [module.eks]
 }
 
@@ -68,9 +68,9 @@ provider "kubectl" {
 module "networking" {
   source = "../../modules/networking"
 
-  vpc_name_tag                = var.vpc_name_tag
-  office_security_group_name  = var.office_security_group_name
-  ssh_key_name                = var.ssh_key_name
+  vpc_name_tag               = var.vpc_name_tag
+  office_security_group_name = var.office_security_group_name
+  ssh_key_name               = var.ssh_key_name
 }
 
 module "eks" {
@@ -101,14 +101,14 @@ module "eks" {
 module "karpenter" {
   source = "../../modules/karpenter"
 
-  cluster_name                   = module.eks.cluster_name
-  cluster_endpoint               = module.eks.cluster_endpoint
-  karpenter_version              = var.karpenter_version
-  karpenter_controller_role_arn  = module.eks.karpenter_controller_role_arn
-  karpenter_node_role_name       = split("/", module.eks.karpenter_node_role_arn)[1]
-  interruption_queue_name        = module.eks.karpenter_interruption_queue_name
-  private_subnet_ids             = module.networking.private_subnet_ids
-  node_security_group_id         = module.eks.node_security_group_id
+  cluster_name                  = module.eks.cluster_name
+  cluster_endpoint              = module.eks.cluster_endpoint
+  karpenter_version             = var.karpenter_version
+  karpenter_controller_role_arn = module.eks.karpenter_controller_role_arn
+  karpenter_node_role_name      = split("/", module.eks.karpenter_node_role_arn)[1]
+  interruption_queue_name       = module.eks.karpenter_interruption_queue_name
+  private_subnet_ids            = module.networking.private_subnet_ids
+  node_security_group_id        = module.eks.node_security_group_id
 
   capacity_types    = var.karpenter_capacity_types
   instance_families = var.karpenter_instance_families
