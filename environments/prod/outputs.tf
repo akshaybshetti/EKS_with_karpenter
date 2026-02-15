@@ -33,10 +33,10 @@ output "configure_kubectl" {
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
-output "karpenter_namespace" {
-  description = "Namespace where Karpenter is installed"
-  value       = module.karpenter.karpenter_namespace
-}
+# output "karpenter_namespace" {
+#   description = "Namespace where Karpenter is installed"
+#   value       = module.karpenter.karpenter_namespace
+# }
 
 output "karpenter_node_role_arn" {
   description = "IAM role ARN for Karpenter-managed nodes"
