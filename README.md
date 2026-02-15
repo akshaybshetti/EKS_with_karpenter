@@ -407,16 +407,16 @@ kubectl get ec2nodeclass
 
 Deploy a test workload to verify Karpenter scales nodes:
 
-# Scale up to trigger Karpenter
+## Scale up to trigger Karpenter
 kubectl scale deployment inflate --replicas=10
 
-# Watch nodes being created
+## Watch nodes being created
 kubectl get nodes -w
 
-# Check Karpenter logs
+## Check Karpenter logs
 kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter -f
 
-# Scale down
+## Scale down
 kubectl delete deployment inflate
 ```
 
