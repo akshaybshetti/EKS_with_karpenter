@@ -591,3 +591,22 @@ kubectl port-forward -n karpenter svc/karpenter 8080:8080
 11. **Configure kubectl**: Update kubeconfig to access the cluster
 12. **Verify Deployment**: Check nodes and Karpenter status
 13. **Test Autoscaling**: Deploy test workload to verify Karpenter
+
+## 🚢 Frontend Team Deployment Starter Templates
+
+This repository includes starter manifests and CI/CD workflow templates for frontend teams:
+
+- `k8s/rbac/frontend-team-rbac.yaml` - namespace-scoped RBAC example for frontend deployments
+- `k8s/apps/frontend/frontend-app.yaml` - sample Deployment + Service + Ingress manifest
+- `.github/workflows/frontend-cicd.yaml` - GitHub Actions workflow to build/push to ECR and deploy to EKS
+- `k8s/apps/frontend/DEPLOYMENT_RUNBOOK.md` - exact step-by-step "what next" runbook
+
+### What next after adding these files?
+
+1. Create frontend namespaces (`frontend-dev`, `frontend-pre-prod`, `frontend-prod`)
+2. Apply RBAC and verify developer/group binding
+3. Create ECR repository and configure GitHub OIDC role secret
+4. Push frontend code to trigger dev deployment
+5. Use manual workflow dispatch to promote to pre-prod/prod
+
+> Update placeholders (`<AWS_ACCOUNT_ID>`, `<AWS_REGION>`, domain names, role ARN, cluster names) before use.

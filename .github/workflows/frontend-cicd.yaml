@@ -1,0 +1,105 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "k8s/apps/frontend/**"
+      - ".github/workflows/frontend-cicd.yaml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, pre-prod, prod]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: frontend-app
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve deployment variables
+        run: |
+          TARGET_ENV="${{ github.event.inputs.environment || 'dev' }}"
+          case "$TARGET_ENV" in
+            dev)
+              echo "K8S_NAMESPACE=frontend-dev" >> "$GITHUB_ENV"
+              echo "EKS_CLUSTER_NAME=eks-dev-cluster" >> "$GITHUB_ENV"
+              echo "K8S_MANIFEST=k8s/apps/frontend/frontend-app.yaml" >> "$GITHUB_ENV"
+              ;;
+            pre-prod)
+              echo "K8S_NAMESPACE=frontend-pre-prod" >> "$GITHUB_ENV"
+              echo "EKS_CLUSTER_NAME=eks-pre-prod-cluster" >> "$GITHUB_ENV"
+              echo "K8S_MANIFEST=k8s/apps/frontend/frontend-app.yaml" >> "$GITHUB_ENV"
+              ;;
+            prod)
+              echo "K8S_NAMESPACE=frontend-prod" >> "$GITHUB_ENV"
+              echo "EKS_CLUSTER_NAME=eks-prod-cluster" >> "$GITHUB_ENV"
+              echo "K8S_MANIFEST=k8s/apps/frontend/frontend-app.yaml" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Unsupported environment: $TARGET_ENV" >&2
+              exit 1
+              ;;
+          esac
+          echo "TARGET_ENV=$TARGET_ENV" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" ./frontend
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig from EKS
+        run: |
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace "$K8S_NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$K8S_NAMESPACE"
+
+      - name: Deploy to Kubernetes
+        run: |
+          sed \
+            -e "s#namespace: frontend-dev#namespace: $K8S_NAMESPACE#g" \
+            -e "s#frontend-dev.example.com#frontend-$TARGET_ENV.example.com#g" \
+            -e "s#<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/frontend-app:latest#$IMAGE#g" \
+            "$K8S_MANIFEST" | kubectl apply -f -
+
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/frontend --timeout=300s
+
+      - name: Smoke test
+        run: |
+          kubectl -n "$K8S_NAMESPACE" get pods -l app=frontend
+          kubectl -n "$K8S_NAMESPACE" get svc frontend
+          kubectl -n "$K8S_NAMESPACE" get ingress frontend
