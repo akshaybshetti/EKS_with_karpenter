@@ -549,7 +549,7 @@ terraform destroy
 ```
 
 
-## 📊 Monitoring and Observability
+## 📊 Monitoring and Observabilit
 
 ### View Karpenter Metrics
 
