@@ -43,25 +43,25 @@ variable "enable_public_access" {
 variable "karpenter_node_instance_types" {
   description = "Instance types for Karpenter controller nodes"
   type        = list(string)
-  default     = ["t4g.large"]  # Graviton-based ARM64
+  default     = ["t4g.small"]  # Graviton-based ARM64
 }
 
 variable "karpenter_node_min_size" {
   description = "Minimum size of Karpenter controller node group"
   type        = number
-  default     = 4
+  default     = 1
 }
 
 variable "karpenter_node_max_size" {
   description = "Maximum size of Karpenter controller node group"
   type        = number
-  default     = 4
+  default     = 1
 }
 
 variable "karpenter_node_desired_size" {
   description = "Desired size of Karpenter controller node group"
   type        = number
-  default     = 4
+  default     = 1
 }
 
 # Karpenter Configuration
@@ -86,13 +86,13 @@ variable "karpenter_instance_families" {
 variable "karpenter_cpu_limit" {
   description = "Maximum CPU cores for Karpenter to provision"
   type        = string
-  default     = "75"  # Lower limit for dev
+  default     = "15"  # Lower limit for dev
 }
 
 variable "karpenter_memory_limit" {
   description = "Maximum memory for Karpenter to provision"
   type        = string
-  default     = "150Gi"  # Lower limit for dev
+  default     = "30Gi"  # Lower limit for dev
 }
 
 variable "memory_limit" {
