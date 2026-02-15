@@ -407,30 +407,6 @@ kubectl get ec2nodeclass
 
 Deploy a test workload to verify Karpenter scales nodes:
 
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: inflate
-spec:
-  replicas: 0
-  selector:
-    matchLabels:
-      app: inflate
-  template:
-    metadata:
-      labels:
-        app: inflate
-    spec:
-      containers:
-      - name: inflate
-        image: public.ecr.aws/eks-distro/kubernetes/pause:3.7
-        resources:
-          requests:
-            cpu: 1
-EOF
-
 # Scale up to trigger Karpenter
 kubectl scale deployment inflate --replicas=10
 
@@ -547,17 +523,6 @@ kubectl get nodes -w
 # Then destroy infrastructure
 terraform destroy
 ```
-
-
-## 📊 Monitoring and Observabilit
-
-### View Karpenter Metrics
-
-```bash
-# Port-forward to Karpenter metrics
-kubectl port-forward -n karpenter svc/karpenter 8080:8080
-
-# Access metrics at http://localhost:8080/metrics
 ```
 
 ```
